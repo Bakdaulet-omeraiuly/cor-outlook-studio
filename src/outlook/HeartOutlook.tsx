@@ -15,8 +15,10 @@ import { getHeartAssetSpec } from "@/scene/asset-adapters/registry";
 import { useLowAssets } from "@/scene/useHeartAssets";
 import { Button, PanelHeader, Segmented } from "@/components/ui/primitives";
 import { useWebgl } from "@/components/workspace/HeartViewport";
-import { useOutlook, type HeartScenario } from "./outlookStore";
+import { useOutlook, type HeartScenario, DEFAULT_HEART_PRESET, TX_MAX_YEARS } from "./outlookStore";
 import { HorizonControls, OutlookCaveat, SourceList, fmtSigned } from "./shared";
+import { InterventionButtons } from "./InterventionButtons";
+import { heartTreatment, type HeartTreatmentState } from "@/domain/outlook/treatment";
 
 const CompareCanvas = dynamic(() => import("@/scene/CompareCanvas"), { ssr: false });
 
@@ -27,15 +29,16 @@ export function HeartOutlook() {
   const entry = useApp((s) => (s.selectedKey ? s.entries[s.selectedKey] : null));
   const scenario = useOutlook((s) => s.heartScenario);
   if (!entry) return <p className="p-6 text-[13px] text-muted">Select a record in the patient panel to open its outlook.</p>;
-  return scenario === "as" ? <AorticStenosisOutlook entry={entry} /> : <LvhOutlook entry={entry} />;
+  return scenario === "as" ? <AorticStenosisOutlook entry={entry} /> : scenario === "tx" ? <TreatmentOutlook entry={entry} /> : <LvhOutlook entry={entry} />;
 }
 
 function ScenarioPicker() {
   const scenario = useOutlook((s) => s.heartScenario);
+  const years = useOutlook((s) => s.years);
   const set = useOutlook((s) => s.set);
   return (
-    <Segmented<HeartScenario> label="Heart scenario" size="md" value={scenario} onChange={(v) => set({ heartScenario: v })}
-      options={[{ value: "as", label: "Aortic stenosis" }, { value: "lvh", label: "LVH on treatment" }]} />
+    <Segmented<HeartScenario> label="Heart scenario" size="md" value={scenario} onChange={(v) => set({ heartScenario: v, ...(v === "tx" ? { years: Math.min(TX_MAX_YEARS, years) } : {}) })}
+      options={[{ value: "tx", label: "Treatment" }, { value: "as", label: "Aortic stenosis" }, { value: "lvh", label: "LVH arms" }]} />
   );
 }
 
@@ -298,6 +301,121 @@ function LvhCard({ title, p, lvidMm }: { title: string; p: LvhProjection; lvidMm
         {p.years > 0 && <span className="text-[12px] font-normal text-muted"> ({fmtSigned(p.lvmiChange, 1)}; range {fmtSigned(p.lvmiRange[0], 0)} to {fmtSigned(p.lvmiRange[1], 0)})</span>}
       </p>
       <p className="num text-[11px] text-muted">IVSd {p.ivsMm.toFixed(1)} · LVPWd {p.pwMm.toFixed(1)} mm · LVM {p.lvmG.toFixed(0)} g · <span className="text-faint">{over}</span></p>
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------- treatment scenarios (M1)
+
+function TreatmentOutlook({ entry }: { entry: PatientEntry }) {
+  const { years, interventionIds, suggestedInterventionIds, lvhOverrides, set } = useOutlook();
+  const recorded = useMemo(() => readLvhBaseline(entry.patient), [entry]);
+  const y = Math.max(0, Math.min(TX_MAX_YEARS, years));
+  const inp = {
+    ivsMm: lvhOverrides.ivsMm ?? recorded.ivsMm ?? LVH_DEFAULTS.ivsMm,
+    pwMm: lvhOverrides.pwMm ?? recorded.pwMm ?? LVH_DEFAULTS.pwMm,
+    lvidMm: lvhOverrides.lvidMm ?? recorded.lvidMm ?? LVH_DEFAULTS.lvidMm,
+    bsaM2: lvhOverrides.bsaM2 ?? recorded.bsaM2 ?? LVH_DEFAULTS.bsaM2,
+  };
+  const inputKey = `${inp.ivsMm}|${inp.pwMm}|${inp.lvidMm}|${inp.bsaM2}`;
+  const idsKey = [...interventionIds].sort().join("|");
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- keyed by primitive inputs and sorted ids
+  const tx = useMemo(() => heartTreatment(inp, interventionIds, y), [inputKey, idsKey, y]);
+  const untreatedRecord = useMemo(
+    () => withProjectedWalls(entry.patient, tx.untreated.ivsMm, tx.untreated.pwMm, "::tx-untreated", `Untreated · +${y} y (no progression modelled)`),
+    [entry, tx.untreated.ivsMm, tx.untreated.pwMm, y],
+  );
+  const treatedRecord = useMemo(
+    () => withProjectedWalls(entry.patient, tx.treated.ivsMm, tx.treated.pwMm, "::tx-treated", `With selected interventions · +${y} y`),
+    [entry, tx.treated.ivsMm, tx.treated.pwMm, y],
+  );
+  const entries = useOutlookEntries(entry, untreatedRecord, treatedRecord);
+  const field = (k: keyof typeof LVH_DEFAULTS) => sourceHint(recorded[k], lvhOverrides[k]);
+  const toggle = (id: string) => set({
+    interventionIds: interventionIds.includes(id)
+      ? interventionIds.filter((x) => x !== id)
+      : [...interventionIds, id],
+  });
+
+  return (
+    <OutlookLayout
+      entry={entry}
+      entries={entries}
+      toolbar={null}
+      cards={[
+        <TreatmentCard key="u" title={`Untreated · +${y} y`} p={tx.untreated} untreated />,
+        <TreatmentCard key="t" title={`With selected interventions · +${y} y`} p={tx.treated} />,
+      ]}
+    >
+      <p className="text-[11px] text-faint">
+        Cohort-average published effects on hypertensive LV mass. Untreated anatomy is unchanged because no verified per-year LVH progression rate was found.
+      </p>
+
+      <InterventionButtons organ="heart" selected={interventionIds} suggested={suggestedInterventionIds} onToggle={toggle} />
+
+      <div className="mt-4">
+        <label className="flex items-center justify-between text-[11px] text-muted" htmlFor="tx-years">
+          <span>Year</span><span className="num text-ink">{y}</span>
+        </label>
+        <input
+          id="tx-years"
+          type="range"
+          min={0}
+          max={TX_MAX_YEARS}
+          step={1}
+          value={y}
+          onChange={(e) => set({ years: Math.max(0, Math.min(TX_MAX_YEARS, Number(e.target.value))) })}
+          className="mt-1 w-full accent-accent"
+        />
+        <div className="flex items-center justify-between text-[10px] text-faint"><span>Today</span><span>5 years</span></div>
+      </div>
+
+      <div className="mt-3 flex items-center gap-2">
+        <Button size="sm" onClick={() => set({ interventionIds: [] })}>Reset</Button>
+        <Button size="sm" variant="ghost" onClick={() => set({ interventionIds: [...DEFAULT_HEART_PRESET], years: TX_MAX_YEARS })}>Default preset</Button>
+      </div>
+
+      <div className="mt-3 grid grid-cols-2 gap-2">
+        <NumberField label="IVSd today" unit="mm" value={inp.ivsMm} step={0.5} min={5} max={35} hint={field("ivsMm")} onChange={(v) => set({ lvhOverrides: { ...lvhOverrides, ivsMm: v } })} />
+        <NumberField label="LVPWd today" unit="mm" value={inp.pwMm} step={0.5} min={5} max={35} hint={field("pwMm")} onChange={(v) => set({ lvhOverrides: { ...lvhOverrides, pwMm: v } })} />
+        <NumberField label="LVIDd today" unit="mm" value={inp.lvidMm} step={1} min={25} max={85} hint={field("lvidMm")} onChange={(v) => set({ lvhOverrides: { ...lvhOverrides, lvidMm: v } })} />
+        <NumberField label="Body surface area" unit="m²" value={inp.bsaM2} step={0.05} min={1} max={3} hint={field("bsaM2")} onChange={(v) => set({ lvhOverrides: { ...lvhOverrides, bsaM2: v } })} />
+      </div>
+
+      {tx.modelledTimeCourse && <p className="mt-3 text-[10px] leading-snug text-faint">Modelled time course: each published effect ramps to its source follow-up, then is held. This is an assumption beyond measured follow-up.</p>}
+      {tx.warnings.length > 0 && (
+        <div className="mt-3 rounded-md border border-warn/40 bg-warn/10 p-2" role="status">
+          <p className="text-[10px] font-semibold uppercase tracking-wider text-warn">Engine warnings</p>
+          <ul className="mt-1 list-disc space-y-1 pl-4 text-[10px] leading-snug text-muted">{tx.warnings.map((w, i) => <li key={i}>{w}</li>)}</ul>
+        </div>
+      )}
+
+      <div className="mt-4">
+        <OutlookCaveat>
+          Cohort-level estimate — not a prediction for an individual patient; clinician decision support only. The two hearts are ordinary record copies rendered through the existing mapping engine. No treatment recommendation is made.
+        </OutlookCaveat>
+      </div>
+
+      <H3>How the 3D model changes</H3>
+      <p className="text-[11px] leading-snug text-muted">
+        LVMI is converted to LV mass using body surface area. The shared ASE/Devereux formula is inverted with cavity diameter held and septal/posterior walls scaled by one factor (minimum 6 mm). The existing mapping engine draws the projected walls; no second deformation path is used. The short-axis rings below are to scale.
+      </p>
+    </OutlookLayout>
+  );
+}
+
+function TreatmentCard({ title, p, untreated = false }: { title: string; p: HeartTreatmentState; untreated?: boolean }) {
+  const over = p.lvmiGm2 > LVMI_UPPER_NORMAL.men ? "above both sex limits" : p.lvmiGm2 > LVMI_UPPER_NORMAL.women ? "above the women's limit" : "within normal limits";
+  return (
+    <div className="flex min-w-0 items-center gap-3 px-3 py-2" data-testid={untreated ? "tx-untreated" : "tx-treated"}>
+      <ShortAxisGauge ivsMm={p.ivsMm} pwMm={p.pwMm} lvidMm={p.lvidMm} />
+      <div className="min-w-0">
+        <p className="truncate text-[11px] text-faint">{title}</p>
+        <p className="num text-[17px] font-medium leading-tight text-ink">LVMI {p.lvmiGm2.toFixed(0)} g/m²
+          {!untreated && <span className="text-[12px] font-normal text-muted"> ({p.lvmiRange[0].toFixed(0)}–{p.lvmiRange[1].toFixed(0)})</span>}
+        </p>
+        <p className="num text-[11px] text-muted">IVSd {p.ivsMm.toFixed(1)} · LVPWd {p.pwMm.toFixed(1)} mm · LVM {p.lvmG.toFixed(0)} g · <span className="text-faint">{over}</span></p>
       </div>
     </div>
   );
