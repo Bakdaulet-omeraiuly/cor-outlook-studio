@@ -5,7 +5,6 @@ import { useRef } from "react";
 import { PanelRightOpen } from "lucide-react";
 import { useApp } from "@/state/store";
 import { Inspector } from "../inspector/Inspector";
-import { AssistantPanel } from "../assistant/AssistantPanel";
 
 export const INSPECTOR_MIN = 280;
 export const INSPECTOR_MAX = 640;
@@ -54,7 +53,6 @@ export function InspectorColumn() {
         title="Drag to resize · double-click to reset"
       />
       <Inspector />
-      <AssistantPanel />
     </div>
   );
 }
