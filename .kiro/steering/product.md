@@ -1,21 +1,24 @@
 ---
 inclusion: always
 ---
-# Product: COR Outlook Studio
+# Product: COR Heart Studio
 
 - **What it is:** a 3D heart and brain viewer driven by a patient record. Each visual change traces back to the record
   value, the rule and the evidence class behind it.
-- **Focus of this fork:** the **Outlook** screen — cohort-level, evidence-based treatment scenarios. A clinician toggles
-  drug / lifestyle interventions and sees the organ in 5 years **with vs without** treatment, with numbers and
-  uncertainty ranges. The intervention engine is vendored under `src/domain/interventions/`.
-- **Boundary:** a demo on synthetic and open data. It is **not a medical device, gives no diagnosis, and makes no
-  individual forecast or treatment recommendation.** Everything shown is a cohort average from cited papers.
-- **Core rule:** code computes every number; no number appears without a citation; unverified effects stay excluded and
-  visibly disabled with the reason. Honest provenance labels (CT-derived vs illustrative vs modelled).
+- **Diagnostic assistant:** a rules engine (`assess()`) grades the conditions the site shows by guideline and produces
+  findings, a differential, missing data and red flags. A Claude chat explains that result to a clinician.
+- **Boundary:** a demo on synthetic and open data. It is **not a medical device and gives no diagnosis**. The assistant
+  supports clinicians: it never addresses patients, never gives treatment or dosing advice, and red flags only say
+  "urgent specialist review".
+- **Core rule:** code computes every number and grade, and the LLM only explains. Every clinical statement carries a
+  rule id and a guideline DOI.
 
-## Scope notes
+## Ownership (do not edit someone else's area without telling them)
 
-- This repository is a fork of COR Studio with the diagnosis engine and chat assistant removed; it keeps the heart,
-  brain, Outlook, mapping engine, scene and design system.
-- Stay inside `src/outlook/`, `src/domain/outlook/`, `src/domain/interventions/`, `src/brain/`, `src/scene/`, `docs/`.
-- Specs live in `.kiro/specs/outlook-interventions/`. The master spec is `docs/outlook-treatment-spec.md`.
+| Owner | Area |
+|---|---|
+| @HyorinmaruK | `src/domain/diagnosis/**`, `tests/unit/diagnosis/**`, `tests/assistant/cases/**`, `docs/research/diagnosis-engine.md`, `.kiro/specs/diagnosis-engine/` |
+| @kerimku1 | `src/app/api/assistant/**`, chat UI components, `scripts/eval-assistant.ts`, `docs/research/assistant-chat.md`, `.kiro/specs/assistant-chat/` |
+| @Bakdaulet-omeraiuly | everything else (3D scene, pipeline, import, mapping, outlook) |
+
+The contract between the engine and the chat is `src/domain/diagnosis/types.ts`. Tell the other side before changing it.
