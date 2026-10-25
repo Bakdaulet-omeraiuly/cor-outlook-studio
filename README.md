@@ -6,6 +6,12 @@ class. **Visualization demo with synthetic data — not a medical device, no dia
 
 How the team used Kiro (specs, steering, hooks, property-based tests): [`KIRO.md`](KIRO.md). Kiro files: [`.kiro/`](.kiro).
 
+## Origin
+
+COR Outlook Studio was created from [`Bakdaulet-omeraiuly/cor-heart-studio`](https://github.com/Bakdaulet-omeraiuly/cor-heart-studio) `main` at commit `9cdffe7`, retaining its MIT licence, open-data credits, heart/brain scenes, mapping engine, design system, Outlook scenarios, diagnosis engine and chat assistant.
+
+The treatment-scenario engine is vendored from [`Bakdaulet-omeraiuly/cor-outlook-engine`](https://github.com/Bakdaulet-omeraiuly/cor-outlook-engine) at commit `9cdad09ac77f027fff185c229b98633d52db586a`. See [`src/domain/interventions/README.md`](src/domain/interventions/README.md), [`docs/interventions-evidence.md`](docs/interventions-evidence.md), and [`docs/interventions-attributions.md`](docs/interventions-attributions.md).
+
 ## Quick start
 
 ```bash
