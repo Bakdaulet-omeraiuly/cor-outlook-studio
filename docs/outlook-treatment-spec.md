@@ -2,6 +2,13 @@
 
 Status: approved direction, written 2026-10-24. Audience: Kiro (code author). Owner: Bakdaulet.
 Repo to change: `Bakdaulet-omeraiuly/cor-heart-studio` (COR Studio). Engine source: `Bakdaulet-omeraiuly/cor-outlook-engine` (public).
+
+> **Fork implementation overrides (approved later on 2026-10-24):** implementation now lives in the private fork
+> `Bakdaulet-omeraiuly/cor-outlook-studio`, commits land on that repo's `main`, and production deploys target only the
+> Vercel project `cor-outlook-studio` after milestones B and D. The diagnosis engine and chat assistant were restored
+> byte-identically from fork baseline `3fd7351`; treatment work must not change their existing behaviour or prompts.
+> These overrides supersede §0.5 and §8.2–4 where they require a branch-only/no-production workflow.
+
 Everything below was checked against `origin/main` of both repos on 2026-10-24. File paths are real. Where something
 was NOT verified it says **VERIFY**. If reality differs from this document, stop and report; do not improvise.
 

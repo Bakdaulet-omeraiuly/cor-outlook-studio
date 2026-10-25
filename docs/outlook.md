@@ -84,3 +84,77 @@ Code: `src/domain/outlook/` (evidence table, pure projection, heart record copy)
 ## Next candidates (not built)
 
 * Age-matched normative centiles (Brain Charts for the Human Lifespan, Bethlehem 2022) in place of fixed rates.
+
+
+## Treatment scenarios
+
+Status in this fork: the heart LVH treatment scenario is implemented side-by-side with the default ACEi/ARB + SGLT2 preset. Brain treatment and the ghost overlay follow in milestones C and D. The versioned master spec is [`docs/outlook-treatment-spec.md`](outlook-treatment-spec.md).
+
+Full supporting material:
+
+- [`interventions-evidence.md`](interventions-evidence.md) — verbatim evidence snapshot from `cor-outlook-engine` commit `9cdad09ac77f027fff185c229b98633d52db586a`: every effect, citation, DOI, grade, excluded/unverified item and the original engine modelling notes.
+- [`interventions-attributions.md`](interventions-attributions.md) — only the COR Studio assets used here: TotalSegmentator v1 s0270 and Mindboggle MMRR-21-5.
+- `src/domain/interventions/README.md` — vendored-source provenance and pinned SHA.
+
+### Combination and time course
+
+For parameter `p`, intervention effects are relative changes and combine multiplicatively:
+
+`T_p(t) = U_p(t) · Π_i [1 + e_(i,p) · min(1, t / F_(i,p))]`
+
+- `U_p(t)` is the untreated course.
+- `e_(i,p)` is the verified published effect for intervention `i` on parameter `p`.
+- `F_(i,p)` is that effect's own source follow-up (`followUpYears`), not one global horizon.
+- Duplicate ids and mutually exclusive classes count once. Inputs are sorted, so toggle order cannot change the result.
+- The effect ramps linearly from zero at today to the published total effect at its source follow-up, then is held. The ramp and post-follow-up hold are modelling assumptions, labelled **modelled time course** in the UI; they are not measured annual effects.
+- Likely/best/worst comes from seeded Monte Carlo (`seed = 1`, 2000 iterations), sampling each effect's 95% CI and reporting the 2.5th/97.5th percentiles. Physiological bounds are applied by the engine and reported when clamped.
+
+The copied engine evidence snapshot still contains its earlier global-five-year-ramp paragraph. The vendored code at the pinned commit and this section are authoritative for this integration: each contribution now uses its own `followUpYears` (Erickson exercise 1 year; EMPA-TROPISM 0.5 year; currently modelled ACEi/ARB, beta-blocker and weight-loss effects 1 year), with `durability: "held"` explicitly marking extrapolation beyond follow-up.
+
+### Heart: LVMI to the existing 3D mapping path
+
+Untreated hypertensive LVH is held at today's anatomy: **no progression modelled**. No verified, general per-year structural progression rate was found, so none is estimated.
+
+1. Baseline LV mass uses the existing ASE/Devereux formula (dimensions in cm):
+   `LVM = 0.8 · 1.04 · [(IVSd + LVIDd + PWd)^3 − LVIDd^3] + 0.6 g`.
+2. `LVMI_0 = LVM_0 / BSA`; the intervention engine supplies `LVMI_T(t)`.
+3. `LVM_T(t) = LVMI_T(t) · BSA`.
+4. Existing `wallsForMass()` scales IVSd and LVPWd by one common factor with LVIDd held; neither wall may fall below 6 mm.
+5. `withProjectedWalls()` writes the two states to ordinary record copies. Both pass through the existing mapping engine and `CompareCanvas`; there is no second heart-deformation path. The short-axis drawings under the hearts remain the quantitative to-scale wall view.
+
+Golden point estimates at year 5 (full published effects reached and held):
+
+| Selection | LVMI multiplier | Example from 135 g/m² |
+|---|---:|---:|
+| ACEi/ARB + SGLT2 inhibitor + beta-blocker | `0.89 · 0.87 · 0.94` | 98.26 g/m² |
+| Weight loss | `0.92` | 124.2 g/m² |
+
+### Brain: existing ageing path plus intervention difference
+
+The untreated arm stays on COR Studio's existing typical-ageing path: `projectBrain(baseline, "aging", years, pace)`. A parity test fails if the vendored engine's natural-course means differ from `BRAIN_SCENARIOS.aging` (hippocampus −1.41%/year, cortex −0.5%/year, ventricles +2%/year).
+
+For each target, the treated ratio is `untreated ratio · intervention multiplier`. Currently only aerobic exercise → hippocampal volume is verified (+2% at the Erickson 2011 one-year follow-up). Cortex and ventricles remain equal to untreated when no verified effect contributes. The existing brain centroid scaling and cortex-normal displacement consume the two ratio sets; no new deformation algorithm is introduced.
+
+### Intervention evidence used
+
+| Organ | Intervention → parameter | Published effect | Grade / follow-up | Source |
+|---|---|---:|---|---|
+| Heart | ACE inhibitor / ARB → LVMI | −11% (modelled pooled class value; CI −8% to −15%) | A / 1 y modelled follow-up | Klingbeil 2003, DOI `10.1016/S0002-9343(03)00158-X` |
+| Heart | Beta-blocker → LVMI | −6% | A / 1 y modelled follow-up | Klingbeil 2003, same DOI |
+| Heart | Beta-blocker → EF (number only) | +17% relative (HFrEF-specific) | A / 1 y | MERIT-HF 1999, DOI `10.1016/S0140-6736(99)04440-2` |
+| Heart | SGLT2 inhibitor → LVMI | −13% | A / 0.5 y | EMPA-TROPISM 2021, DOI `10.1016/j.jacc.2020.11.008` |
+| Heart | SGLT2 inhibitor → EF (number only) | +8% relative (HFrEF-specific) | A / 0.5 y | EMPA-TROPISM 2021, same DOI |
+| Heart | Weight loss → LVMI | −8% | B / 1 y modelled follow-up | MacMahon 1986, DOI `10.1056/NEJM198602063140602` |
+| Brain | Aerobic exercise → hippocampal volume | +2% vs untreated course | B / 1 y | Erickson 2011, DOI `10.1073/pnas.1015950108` |
+
+### Excluded rather than estimated
+
+These catalog buttons have no verified structural effect for the selected organ and remain disabled: ACEi/ARB → wall thickness (LVMI is used instead); statin → LVMI; sodium reduction → LVMI; aerobic exercise → heart LVMI; smoking cessation → heart LVMI; BP control → modelled brain structure; Mediterranean diet → cortical thickness; sleep → ventricular volume; smoking cessation → cortical thickness. Their source context and the reason for exclusion remain visible behind each InfoTip.
+
+### Aortic stenosis
+
+The existing untreated aortic-stenosis scenario is unchanged. It has no intervention buttons. The treatment panel states: “No proven medication slows progression; treatment is valve replacement (AVR/TAVI) — ACC/AHA 2020,” DOI `10.1161/CIR.0000000000000923`.
+
+### Safety and provenance
+
+All outputs are cohort averages, not individual forecasts, diagnoses, treatment recommendations, or medical-device output. The treatment heart uses the existing s0270 CT-derived scene (TotalSegmentator v1, CC BY 4.0); the brain uses MMRR-21-5 (Mindboggle-101, CC BY 4.0). Accuracy values describe fidelity to source segmentations, never clinical accuracy.

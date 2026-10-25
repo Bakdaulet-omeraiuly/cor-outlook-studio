@@ -48,6 +48,9 @@ fetch an open case → `build --asset` → `publish` → register it in `src/sce
 - `docs/data-to-visual-mapping.md` — rules, formulas, bounds, limitations
 - `docs/medical-data-dictionary.md` — every category, units, CSV mapping, rendering eligibility
 - `docs/asset-pipeline.md` — how the heart is built, attribute contract, replacement
+- `docs/interventions-evidence.md` — intervention effects, citations, grades, exclusions and time-course assumptions (engine snapshot)
+- `docs/interventions-attributions.md` — licences and provenance for the s0270 heart and MMRR-21-5 brain used by treatment scenarios
+- `docs/outlook.md` — untreated and treatment-scenario formulas, evidence and modelling assumptions
 - `docs/anatomy-review.md` — checklist, rubric, known defects (self-review only)
 - `docs/architecture.md`, `docs/verification.md`
 
